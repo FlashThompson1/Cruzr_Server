@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Neovex Fleet Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-deep: #050507;
+            --surface: rgba(18, 20, 28, 0.7);
+            --surface-hover: rgba(25, 28, 38, 0.9);
+            --primary: #64FFDA;
+            --primary-glow: rgba(100, 255, 218, 0.2);
+            --text-main: #FFFFFF;
+            --text-muted: #8B949E;
+            --border-color: rgba(255, 255, 255, 0.06);
+            --accent-gradient: linear-gradient(135deg, #6A11CB, #2575FC);
+        }
+
+        body { 
+            background-color: var(--bg-deep);
+            background-image: url('bg_neovex.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            color: var(--text-main); 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; padding: 40px 50px; 
+            min-height: 100vh; overflow-x: hidden; box-sizing: border-box;
+        }
+
+        .header { 
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 50px; 
+            background: var(--surface); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 16px 32px; border-radius: 20px; border: 1px solid var(--border-color); box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .logo-group { display: flex; flex-direction: column; gap: 4px; }
+        .logo-text { font-size: 24px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 12px; }
+        .instruction { color: var(--text-muted); font-size: 13px; font-weight: 400; margin: 0; }
+
+        .menu-toggle {
+            background: transparent; border: 1px solid var(--border-color); color: var(--text-main);
+            font-size: 14px; font-weight: 500; padding: 12px 24px; border-radius: 100px; cursor: pointer;
+            transition: all 0.3s; display: flex; align-items: center; gap: 10px;
+        }
+        .menu-toggle:hover { background: var(--primary-glow); border-color: var(--primary); color: var(--primary); }
+
+        .side-navbar {
+            position: fixed; top: 0; right: -400px; width: 360px; height: 100vh;
+            background: rgba(10, 11, 15, 0.85); backdrop-filter: blur(30px); border-left: 1px solid var(--border-color);
+            box-shadow: -20px 0 50px rgba(0,0,0,0.5); transition: right 0.5s; z-index: 999; padding: 40px 30px; 
+            box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;
+            overflow-y: auto;
+        }
+        .side-navbar.open { right: 0; }
+        .navbar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 20px;}
+        .navbar-title { font-size: 18px; font-weight: 600; color: var(--primary); margin: 0; }
+        .close-nav { background: transparent; border: none; color: var(--text-muted); font-size: 28px; cursor: pointer; }
+        .close-nav:hover { color: #fff; }
+
+        .active-robot-indicator { font-size: 13px; color: var(--text-muted); background: var(--surface); padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 10px;}
+        #selectedRobotIdSpan { color: #fff; font-weight: 600; margin-left: 6px; }
+
+        .nav-btn {
+            background: var(--surface); border: 1px solid var(--border-color); color: var(--text-main);
+            border-radius: 14px; padding: 16px 20px; font-size: 14px; font-weight: 500; cursor: pointer; 
+            text-align: left; display: flex; align-items: center; gap: 12px; transition: all 0.2s;
+            justify-content: space-between;
+        }
+        .nav-btn:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--primary); transform: translateY(-2px); }
+        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .anim-group { display: none; flex-direction: column; gap: 8px; margin-top: -8px; margin-bottom: 8px; padding-left: 16px; border-left: 2px solid var(--border-color); margin-left: 16px;}
+        .anim-group.open { display: flex; }
+        .anim-btn {
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-muted);
+            border-radius: 10px; padding: 12px 16px; font-size: 13px; cursor: pointer; transition: all 0.2s; text-align: left;
+        }
+        .anim-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-main); border-color: rgba(255,255,255,0.2); }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 32px; }
+
+        .robot-card { 
+            background: var(--surface); border-radius: 28px; padding: 6px; border: 1px solid var(--border-color); 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); transition: all 0.4s; display: flex; flex-direction: column; 
+            backdrop-filter: blur(20px); cursor: pointer;
+        }
+        .robot-card:hover { transform: translateY(-4px); box-shadow: 0 14px 45px rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); }
+        .robot-card.active-control { border-color: var(--primary); box-shadow: 0 0 30px var(--primary-glow); }
+
+        .card-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; }
+        .robot-id { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;}
+        .status { background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(100,255,218,0.3); padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; text-transform: uppercase;}
+
+        .video-container { position: relative; width: 100%; border-radius: 22px; overflow: hidden; background: #000; aspect-ratio: 16/9; margin-bottom: 6px;}
+        .stream-vid { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; pointer-events: none; transition: opacity 0.4s ease-in-out; }
+        .stream-vid.active-stream { opacity: 1; z-index: 2; pointer-events: auto; }
+        
+        .video-overlay { position: absolute; top: 16px; left: 16px; display: flex; gap: 10px; z-index: 10; pointer-events: none; }
+        .badge { background: rgba(10, 11, 15, 0.75); backdrop-filter: blur(10px); padding: 8px 16px; border-radius: 100px; font-size: 12px; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 6px; }
+        .bat-green { border-color: rgba(76, 175, 80, 0.4); color: #4CAF50; }
+        .bat-yellow { border-color: rgba(255, 235, 59, 0.4); color: #FFEB3B; }
+        .bat-red { border-color: rgba(244, 67, 54, 0.4); color: #F44336; }
+
+        .card-controls { padding: 14px; display: grid; gap: 12px; }
+        
+        .cmd-btn {
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-muted);
+            border-radius: 16px; padding: 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .cmd-btn:hover { color: var(--text-main); border-color: rgba(255,255,255,0.15); background: rgba(0,0,0,0.5); }
+        .cmd-btn.active { background: var(--primary-glow); color: var(--primary); border-color: var(--primary); }
+
+        .ptt-btn {
+            background: var(--surface); border: 1px solid var(--border-color); color: var(--text-main);
+            border-radius: 100px; padding: 16px 20px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .ptt-btn:active, .ptt-btn.active { background: var(--accent-gradient); border-color: transparent; box-shadow: 0 8px 25px rgba(106, 17, 203, 0.4); transform: scale(0.98); color: #fff; }
+
+        .volume-container { display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.2); padding: 8px 16px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .vol-slider { flex-grow: 1; accent-color: var(--primary); cursor: pointer; height: 4px; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-box { background: rgba(18, 20, 28, 0.95); border: 1px solid var(--border-color); border-radius: 24px; padding: 32px; width: 420px; max-width: 90%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.6);}
+        .modal-title { margin: 0 0 24px 0; font-size: 18px; font-weight: 600; }
+        .map-item { background: rgba(255,255,255,0.03); padding: 16px; margin-bottom: 12px; border-radius: 14px; cursor: pointer; border: 1px solid var(--border-color); font-size: 14px; text-align: left;}
+        .map-item:hover { background: rgba(255,255,255,0.08); border-color: var(--primary); }
+        .close-modal { margin-top: 24px; padding: 12px 24px; background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 100px; cursor: pointer; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <div class="modal-overlay" id="mapModal">
+        <div class="modal-box">
+            <h3 class="modal-title">Выбор активной карты</h3>
+            <div id="mapListContainer"></div>
+            <button class="close-modal" onclick="closeMapModal()">Отмена</button>
+        </div>
+    </div>
+
+    <div class="side-navbar" id="sideNav">
+        <div class="navbar-header">
+            <h3 class="navbar-title">Настройки</h3>
+            <button class="close-nav" onclick="toggleNav()">×</button>
+        </div>
+        <div class="active-robot-indicator">Робот: <span id="selectedRobotIdSpan">Не выбран</span></div>
+        <button class="nav-btn" id="navBtnMap" onclick="triggerMapList()" disabled>📍 Сменить карту пространства</button>
+        <button class="nav-btn" id="navBtnRelocate" onclick="triggerRelocate()" disabled>🎯 Калибровка (Найти себя)</button>
+        
+        <button class="nav-btn" id="navBtnAnim" onclick="toggleAnimGroup()" disabled>
+            <span>🎭 Анимации</span>
+            <span id="animIcon">▼</span>
+        </button>
+        <div class="anim-group" id="animGroup">
+            <button class="anim-btn" onclick="triggerAnimation('hug')">🤗 Обнять</button>
+            <button class="anim-btn" onclick="triggerAnimation('handshake')">🤝 Пожать руку</button>
+            <button class="anim-btn" onclick="triggerAnimation('goodbye')">👋 Попрощаться</button>
+            <button class="anim-btn" onclick="triggerAnimation('nod')">👍 Кивнуть (Да)</button>
+            <button class="anim-btn" onclick="triggerAnimation('shake_head')">👎 Покачать головой (Нет)</button>
+        </div>
+
+        <button class="nav-btn" id="navBtnGuideRu" onclick="triggerGuide('ru')" disabled>🇷🇺 Запустить гида (РУС)</button>
+        <button class="nav-btn" id="navBtnGuideUz" onclick="triggerGuide('uz')" disabled>🇺🇿 Запустить гида (УЗБ)</button>
+    </div>
+
+    <div class="header">
+        <div class="logo-group">
+            <div class="logo-text">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                Neovex Command
+            </div>
+            <p class="instruction">Выберите карточку робота для доступа к расширенным настройкам</p>
+        </div>
+        <button class="menu-toggle" onclick="toggleNav()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            Меню
+        </button>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <script>
+        // ==========================================================
+        // БЕЗОПАСНЫЙ ЛОКАЛЬНЫЙ АДРЕС (Исключает ошибки CORS)
+        // ==========================================================
+        const SERVER_URL = "http://127.0.0.1:8000";
+        const LIVEKIT_URL = "ws://10.203.216.202:7880";
+        const ROOM_NAME = "neovex_room";
+
+        let currentRoom = null;
+        let activeWasdRobotId = null; 
+        let selectedMenuRobotId = null; 
+        let keysPressed = new Set();  
+        let currentRequestingRobot = null; 
+        
+        let robotAudioElements = {};
+
+        function toggleNav() { document.getElementById('sideNav').classList.toggle('open'); }
+
+        function toggleAnimGroup() {
+            const group = document.getElementById('animGroup');
+            const icon = document.getElementById('animIcon');
+            if (group.classList.contains('open')) {
+                group.classList.remove('open');
+                icon.innerText = '▼';
+            } else {
+                group.classList.add('open');
+                icon.innerText = '▲';
+            }
+        }
+
+        function selectRobotForMenu(id) {
+            selectedMenuRobotId = id;
+            document.getElementById('selectedRobotIdSpan').innerText = id;
+            document.getElementById('navBtnMap').disabled = false;
+            document.getElementById('navBtnRelocate').disabled = false;
+            document.getElementById('navBtnAnim').disabled = false;
+            document.getElementById('navBtnGuideRu').disabled = false;
+            document.getElementById('navBtnGuideUz').disabled = false;
+
+            document.querySelectorAll('.robot-card').forEach(c => c.style.borderColor = 'var(--border-color)');
+            const card = document.getElementById(`card-${id}`);
+            if(card) card.style.borderColor = 'var(--primary)';
+            
+            const nav = document.getElementById('sideNav');
+            if(!nav.classList.contains('open')) toggleNav();
+        }
+
+        window.triggerMapList = function() {
+            if(!selectedMenuRobotId) return;
+            currentRequestingRobot = selectedMenuRobotId;
+            document.getElementById('mapListContainer').innerHTML = "<p style='color:var(--text-muted); font-size: 14px;'>Запрашиваю карты с робота...</p>";
+            document.getElementById('mapModal').style.display = 'flex';
+            toggleNav(); 
+            sendRobotCommand(selectedMenuRobotId, {cmd: 'get_maps'});
+        }
+
+        window.triggerRelocate = function() {
+            if(!selectedMenuRobotId) return;
+            sendRobotCommand(selectedMenuRobotId, {cmd: 'relocate'});
+            toggleNav();
+        }
+
+        window.triggerGuide = function(lang) {
+            if(!selectedMenuRobotId) return;
+            sendRobotCommand(selectedMenuRobotId, {cmd: 'start_guide', lang: lang});
+            toggleNav();
+        }
+
+        window.triggerAnimation = function(animName) {
+            if(!selectedMenuRobotId) return;
+            sendRobotCommand(selectedMenuRobotId, {cmd: 'play_animation', anim_id: animName});
+            toggleNav(); 
+        }
+
+        function attachIncomingTrack(track, participantId) {
+            if (!track) return;
+            
+            if (track.kind === LivekitClient.Track.Kind.Audio) {
+                let audioEl = robotAudioElements[participantId];
+                if (!audioEl) {
+                    audioEl = document.createElement('audio');
+                    audioEl.autoplay = true;
+                    audioEl.volume = 0;
+                    audioEl.style.display = 'none';
+                    document.body.appendChild(audioEl);
+                    robotAudioElements[participantId] = audioEl;
+                }
+                
+                track.attach(audioEl);
+                
+                const listenBtn = document.getElementById(`listen-btn-${participantId}`);
+                if (listenBtn && listenBtn.classList.contains('active')) {
+                    audioEl.volume = 1;
+                } else {
+                    audioEl.volume = 0;
+                }
+                
+                audioEl.play().catch(e => console.log("Audio play caught", e));
+                return;
+            }
+            
+            const vidId = `video-cam-${participantId}`;
+            let oldVideoEl = document.getElementById(vidId);
+            
+            if (oldVideoEl) {
+                const parent = oldVideoEl.parentElement;
+                const newVideoEl = document.createElement('video');
+                newVideoEl.id = vidId;
+                newVideoEl.className = 'stream-vid active-stream';
+                newVideoEl.autoplay = true;
+                newVideoEl.playsInline = true;
+                newVideoEl.muted = true;
+
+                parent.replaceChild(newVideoEl, oldVideoEl);
+                track.attach(newVideoEl);
+            }
+        }
+
+        async function init() {
+            // Принудительно разрешаем обход TCP на случай проблем с UDP в Windows
+            currentRoom = new LivekitClient.Room({
+                iceTransportPolicy: 'all'
+            });
+
+            currentRoom.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                addRobotCard(participant.identity);
+            });
+
+            currentRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                addRobotCard(participant.identity); 
+                attachIncomingTrack(track, participant.identity);
+            });
+
+            currentRoom.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => removeRobotCard(participant.identity));
+
+            currentRoom.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
+                try {
+                    const data = JSON.parse(new TextDecoder().decode(payload));
+                    if (data.cmd === 'map_list') renderMapList(data.robot_id, data.maps);
+                    else if (data.cmd === 'telemetry') updateTelemetryUI(data.robot_id, data.battery, data.map_name, data.volume);
+                } catch(e) {}
+            });
+
+            try {
+                const operatorName = `Operator_${Math.floor(Math.random() * 10000)}`;
+                const res = await fetch(`${SERVER_URL}/get_token?room=${ROOM_NAME}&participant_name=${operatorName}&is_operator=true`, {
+                    headers: { "ngrok-skip-browser-warning": "true" }
+                });
+                
+                if (!res.ok) {
+                    console.error("Ошибка сервера:", res.status);
+                    return;
+                }
+                
+                const data = await res.json();
+                await currentRoom.connect(LIVEKIT_URL, data.token);
+
+                currentRoom.remoteParticipants.forEach((participant) => {
+                    addRobotCard(participant.identity);
+                    participant.trackPublications.forEach((pub) => {
+                        if (pub.track) attachIncomingTrack(pub.track, participant.identity);
+                    });
+                });
+            } catch (e) { 
+                console.error("Критическая ошибка инициализации:", e); 
+                alert("Ошибка связи со штабом Neovex. Проверьте сервер Python.");
+            }
+        }
+
+        async function sendRobotCommand(targetId, commandObj) {
+            if (!currentRoom) return;
+            try {
+                const data = new TextEncoder().encode(JSON.stringify(commandObj));
+                await currentRoom.localParticipant.publishData(data, { reliable: true, destinationIdentities: [targetId] });
+            } catch(e) {}
+        }
+
+        window.toggleListen = function(id) {
+            const btn = document.getElementById(`listen-btn-${id}`);
+            const audioEl = robotAudioElements[id];
+            const isListening = btn.classList.contains('active');
+
+            if (!isListening) {
+                btn.classList.add('active');
+                btn.innerHTML = '🔇 Остановить прослушивание';
+                
+                if (audioEl) {
+                    audioEl.volume = 1; 
+                    audioEl.play().catch(e => console.log("Play failed:", e));
+                }
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '🎧 Слушать окружение';
+                
+                if (audioEl) {
+                    audioEl.volume = 0; 
+                }
+            }
+        }
+
+        window.startPtt = async function(id) {
+            const btn = document.getElementById(`ptt-${id}`);
+            if(btn) {
+                btn.classList.add('active');
+                btn.innerHTML = `Трансляция звука...`;
+            }
+            
+            if (robotAudioElements[id]) robotAudioElements[id].volume = 0;
+            
+            sendRobotCommand(id, {cmd: 'ptt_start'});
+            
+            if (currentRoom) {
+                try {
+                    await currentRoom.localParticipant.setMicrophoneEnabled(true);
+                } catch(e) { console.error(e); }
+            }
+        };
+
+        window.stopPtt = async function(id) {
+            const btn = document.getElementById(`ptt-${id}`);
+            if(btn) {
+                btn.classList.remove('active');
+                btn.innerHTML = `Удерживайте для связи`;
+            }
+            
+            if (currentRoom) {
+                try {
+                    await currentRoom.localParticipant.setMicrophoneEnabled(false);
+                } catch(e) { console.error(e); }
+            }
+
+            sendRobotCommand(id, {cmd: 'ptt_stop'});
+
+            const listenBtn = document.getElementById(`listen-btn-${id}`);
+            if (robotAudioElements[id] && listenBtn && listenBtn.classList.contains('active')) {
+                robotAudioElements[id].volume = 1;
+            }
+        };
+
+        function addRobotCard(id) {
+            let card = document.getElementById(`card-${id}`);
+            
+            if (!card) {
+                const grid = document.getElementById('grid');
+                card = document.createElement('div');
+                card.id = `card-${id}`;
+                card.className = 'robot-card';
+                card.onclick = (e) => { 
+                    if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') selectRobotForMenu(id); 
+                };
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="robot-id"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h8"/></svg> ${id}</div>
+                        <div class="status">В СЕТИ</div>
+                    </div>
+                    
+                    <div class="video-container" id="video-container-${id}">
+                        <video id="video-cam-${id}" class="stream-vid active-stream" autoplay playsinline muted style="opacity: 1; z-index: 2;"></video>
+                        
+                        <div class="video-overlay">
+                            <div id="bat-${id}" class="badge">🔋 --%</div>
+                            <div id="map-${id}" class="badge">📍 Анализ...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-controls">
+                        <div class="volume-container">
+                            <span style="font-size: 14px;">🔊</span>
+                            <input type="range" class="vol-slider" id="vol-${id}" min="0" max="100" value="50">
+                            <span id="vol-label-${id}" style="font-size: 12px; min-width: 30px;">50%</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <button class="cmd-btn" onclick="sendRobotCommand('${id}', {cmd: 'charge'})" style="padding: 10px;">
+                                🔌 На базу
+                            </button>
+                            <button class="cmd-btn" onclick="sendRobotCommand('${id}', {cmd: 'shutdown'})" style="padding: 10px; color: #F44336; border-color: rgba(244, 67, 54, 0.3);">
+                                🛑 Выключить
+                            </button>
+                        </div>
+                        
+                        <button class="cmd-btn" id="listen-btn-${id}" onclick="toggleListen('${id}')">
+                            🎧 Слушать окружение
+                        </button>
+
+                        <button class="cmd-btn wasd-btn" id="wasd-btn-${id}" onclick="toggleWasdControl('${id}')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+                            Режим управления (WASD)
+                        </button>
+                        
+                        <button class="ptt-btn" id="ptt-${id}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+                            Удерживайте для связи
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+
+                const volSlider = document.getElementById(`vol-${id}`);
+                const volLabel = document.getElementById(`vol-label-${id}`);
+                volSlider.addEventListener('input', (e) => {
+                    const val = e.target.value;
+                    volLabel.innerText = `${val}%`;
+                    sendRobotCommand(id, { cmd: 'set_volume', volume: parseInt(val) });
+                });
+
+                const pttBtn = document.getElementById(`ptt-${id}`);
+                pttBtn.addEventListener('mousedown', () => window.startPtt(id));
+                pttBtn.addEventListener('mouseup', () => window.stopPtt(id));
+                pttBtn.addEventListener('mouseleave', () => window.stopPtt(id));
+            }
+        }
+
+        function updateTelemetryUI(robotId, battery, mapName, volume) {
+            const batEl = document.getElementById(`bat-${robotId}`);
+            const mapEl = document.getElementById(`map-${robotId}`);
+            const volSlider = document.getElementById(`vol-${robotId}`);
+            const volLabel = document.getElementById(`vol-label-${robotId}`);
+
+            if (batEl) {
+                batEl.innerText = `🔋 ${battery}%`;
+                batEl.className = 'badge'; 
+                if (battery > 50) batEl.classList.add('bat-green');
+                else if (battery > 20) batEl.classList.add('bat-yellow');
+                else batEl.classList.add('bat-red');
+            }
+            if (mapEl) mapEl.innerText = `📍 ${mapName}`;
+            
+            if (volSlider && volume !== undefined && !volSlider.matches(':active')) {
+                volSlider.value = volume;
+                if (volLabel) volLabel.innerText = `${volume}%`;
+            }
+        }
+
+        function removeRobotCard(id) {
+            const card = document.getElementById(`card-${id}`);
+            if(card) {
+                if (activeWasdRobotId === id) toggleWasdControl(null); 
+                if (selectedMenuRobotId === id) {
+                    selectedMenuRobotId = null;
+                    document.getElementById('selectedRobotIdSpan').innerText = "Не выбран";
+                    document.getElementById('navBtnMap').disabled = true;
+                    document.getElementById('navBtnRelocate').disabled = true;
+                    document.getElementById('navBtnAnim').disabled = true;
+                }
+                
+                if (robotAudioElements[id]) {
+                    robotAudioElements[id].remove();
+                    delete robotAudioElements[id];
+                }
+                
+                card.remove();
+            }
+        }
+
+        function renderMapList(robotId, mapsArray) {
+            if (currentRequestingRobot !== robotId) return;
+            const container = document.getElementById('mapListContainer');
+            container.innerHTML = "";
+            if (!mapsArray || mapsArray.length === 0) {
+                container.innerHTML = "<p style='color:var(--text-muted);'>Сохраненные карты отсутствуют</p>";
+                return;
+            }
+            mapsArray.forEach(map => {
+                const btn = document.createElement('div');
+                btn.className = 'map-item';
+                btn.innerHTML = `📍 ${map.name}`;
+                btn.onclick = () => {
+                    sendRobotCommand(robotId, {cmd: 'apply_map', map_id: map.id});
+                    closeMapModal();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        window.closeMapModal = function() {
+            document.getElementById('mapModal').style.display = 'none';
+            currentRequestingRobot = null;
+        }
+
+        window.toggleWasdControl = function(targetId) {
+            if (activeWasdRobotId) {
+                document.getElementById(`card-${activeWasdRobotId}`)?.classList.remove('active-control');
+                document.getElementById(`wasd-btn-${activeWasdRobotId}`)?.classList.remove('active');
+            }
+            if (activeWasdRobotId === targetId || !targetId) {
+                activeWasdRobotId = null;
+                keysPressed.clear();
+                return;
+            }
+            activeWasdRobotId = targetId;
+            document.getElementById(`card-${activeWasdRobotId}`).classList.add('active-control');
+            document.getElementById(`wasd-btn-${activeWasdRobotId}`).classList.add('active');
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!activeWasdRobotId) return; 
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                if (!keysPressed.has(key)) {
+                    keysPressed.add(key);
+                    sendRobotCommand(activeWasdRobotId, { cmd: 'move', action: 'start', dir: getDirectionFromKey(key) });
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (!activeWasdRobotId) return;
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                keysPressed.delete(key);
+                sendRobotCommand(activeWasdRobotId, { cmd: 'move', action: 'stop', dir: getDirectionFromKey(key) });
+            }
+        });
+
+        function getDirectionFromKey(key) {
+            switch(key) { case 'w': return 'forward'; case 's': return 'backward'; case 'a': return 'left'; case 'd': return 'right'; }
+        }
+
+        init();
+    </script>
+</body>
+</html>
