@@ -7,7 +7,13 @@ import re
 import os
 from google import genai
 from google.genai import types
+
+# === МАГИЯ ДЛЯ RENDER (Загрузка кодеков FFmpeg без прав администратора) ===
+import imageio_ffmpeg
 from pydub import AudioSegment
+AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
+# ==========================================================================
+
 from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
