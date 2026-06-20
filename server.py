@@ -2,29 +2,21 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-import whisper
 import edge_tts
 import re
 import os
 from google import genai
+from google.genai import types
 from pydub import AudioSegment
 from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
-
 LIVEKIT_URL = "ws://10.203.216.202:7880"
 LIVEKIT_API_KEY = "neovex_key"
 LIVEKIT_API_SECRET = "neovex_super_secret_password_2026"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
 client = genai.Client(api_key="AIzaSyAxDIQ3bmpX2g1rmAX5fbYKKCiVy4Pt4gw")
-
-ANIM_HANDSHAKE = "handshake"
-ANIM_HUG = "hug"
-ANIM_GOODBYE = "goodbye"
-
-print("📥 Загрузка тяжелой модели Whisper 'large'...")
-whisper_model = whisper.load_model("large")
 
 app = FastAPI()
 
@@ -35,11 +27,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/")
 async def root():
-    return {"status": "online"}
-
+    return {"status": "Neovex Cloud Server is Online"}
 
 @app.get("/get_token")
 async def get_token(request: Request):
@@ -67,36 +57,17 @@ async def get_token(request: Request):
 
     return {"token": token.to_jwt()}
 
-
 @app.post("/ask")
 async def process_audio(request: Request):
     print("\n" + "=" * 40)
     lang_code = request.headers.get("X-Language", "ru")
     raw_audio = await request.body()
 
-    # Если пришел пустой файл (сбой микрофона) - просто игнорируем
     if len(raw_audio) < 1000:
         print("⚠️ Получено пустое аудио. Игнорирую.")
         return Response(content=b"", media_type="application/octet-stream", headers={"X-Robot-Action": "NONE"})
 
-    # ИСПОЛЬЗУЕМ AAC ВМЕСТО M4A (Устойчив к обрывам)
-    aac_filename = "temp_question.aac"
-    with open(aac_filename, 'wb') as f:
-        f.write(raw_audio)
-
-    whisper_hint = "Здравствуйте. У меня есть к вам вопрос." if lang_code == 'ru' else "Assalomu alaykum."
-
-    print("🧠 Обработка аудио через Whisper...")
-    try:
-        result = whisper_model.transcribe(aac_filename, language=lang_code, initial_prompt=whisper_hint)
-        user_text = result["text"].strip()
-        if not user_text:
-            raise ValueError("Пустой текст")
-    except Exception as e:
-        print(f"⚠️ Ошибка Whisper (битый файл?): {e}")
-        return Response(content=b"", media_type="application/octet-stream", headers={"X-Robot-Action": "NONE"})
-
-    print(f"👤 Человек сказал: {user_text}")
+    print("🧠 Отправка аудио напрямую в Gemini (без локального Whisper)...")
 
     action_rules = (
         f"Добавляй тег действия в конец:\n"
@@ -108,18 +79,24 @@ async def process_audio(request: Request):
     )
 
     if lang_code == 'ru':
-        system_role = "Ты умная робот-девушка. Отвечай коротко и дружелюбно. " + action_rules
+        system_role = "Ты умная робот-девушка. Выслушай аудиосообщение пользователя и отвечай коротко и дружелюбно. " + action_rules
         voice_name = "ru-RU-SvetlanaNeural"
     else:
-        system_role = "Sen aqlli robot-qizsan. Qisqa va do'stona javob ber. " + action_rules
+        system_role = "Sen aqlli robot-qizsan. Ovozli xabarni tingla va qisqa, do'stona javob ber. " + action_rules
         voice_name = "uz-UZ-MadinaNeural"
 
-    print("🤖 Отправка запроса в Gemini...")
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=f"{system_role}\n\nВопрос: {user_text}"
-    )
-    ai_text = response.text.strip().replace('*', '')
+    # Превращаем аудио в формат, понятный Gemini
+    audio_part = types.Part.from_bytes(data=raw_audio, mime_type='audio/aac')
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[system_role, audio_part]
+        )
+        ai_text = response.text.strip().replace('*', '')
+    except Exception as e:
+        print(f"⚠️ Ошибка Gemini API: {e}")
+        return Response(content=b"", media_type="application/octet-stream", headers={"X-Robot-Action": "NONE"})
 
     robot_action = "NONE"
     match = re.search(r'\[ACTION:([a-zA-Z0-9_.-]+)\]', ai_text)
