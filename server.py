@@ -18,8 +18,8 @@ from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
 LIVEKIT_URL = "wss://neovex-museum-z1dw0a0y.livekit.cloud"
-LIVEKIT_API_KEY = "neovex_key"
-LIVEKIT_API_SECRET = "neovex_super_secret_password_2026"
+LIVEKIT_API_KEY = "APICfyjEe2GrD8X"
+LIVEKIT_API_SECRET = "3HxBcDuVi4U2NzTWrLPZjLrd5c31TFXzsigixhIaTkG"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
 client = genai.Client(api_key="AIzaSyAxDIQ3bmpX2g1rmAX5fbYKKCiVy4Pt4gw")
