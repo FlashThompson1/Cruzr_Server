@@ -17,7 +17,7 @@ AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
 from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
-LIVEKIT_URL = "ws://10.203.216.202:7880"
+LIVEKIT_URL = "wss://neovex-museum-z1dw0a0y.livekit.cloud"
 LIVEKIT_API_KEY = "neovex_key"
 LIVEKIT_API_SECRET = "neovex_super_secret_password_2026"
 
