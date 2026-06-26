@@ -19,7 +19,7 @@ from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
 LIVEKIT_URL = "wss://neovex-museum-z1dw0a0y.livekit.cloud"
-LIVEKIT_API_KEY = "AIzaSyBpSxzCAPstf7PQ6KwHG6mTpPkfdZImXRQ"
+LIVEKIT_API_KEY = "APICfyjEe2GrD8X"
 LIVEKIT_API_SECRET = "3HxBcDuVi4U2NzTWrLPZjLrd5c31TFXzsigixhIaTkG"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
