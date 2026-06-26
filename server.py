@@ -8,17 +8,18 @@ import os
 from google import genai
 from google.genai import types
 
-# === МАГИЯ ДЛЯ RENDER (Загрузка кодеков FFmpeg без прав администратора) ===
+
+
 import imageio_ffmpeg
 from pydub import AudioSegment
 AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
-# ==========================================================================
+
 
 from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
 LIVEKIT_URL = "wss://neovex-museum-z1dw0a0y.livekit.cloud"
-LIVEKIT_API_KEY = "APICfyjEe2GrD8X"
+LIVEKIT_API_KEY = os.environ.get("GEMINI_API_KEY")
 LIVEKIT_API_SECRET = "3HxBcDuVi4U2NzTWrLPZjLrd5c31TFXzsigixhIaTkG"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
