@@ -18,9 +18,9 @@ AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
 from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
-LIVEKIT_URL = "wss://neovex-museum-z1dw0a0y.livekit.cloud"
-LIVEKIT_API_KEY = "APICfyjEe2GrD8X"
-LIVEKIT_API_SECRET = "3HxBcDuVi4U2NzTWrLPZjLrd5c31TFXzsigixhIaTkG"
+LIVEKIT_URL = "wss://cruzr-neovex.duckdns.org"
+LIVEKIT_API_KEY = "APICWoWc2ckBgqh"
+LIVEKIT_API_SECRET = "7aeJDn5fWe7XQRTdVNemXsFTz7YxEVovW3pByNuAKV3A"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
 client = genai.Client(api_key="AIzaSyAxDIQ3bmpX2g1rmAX5fbYKKCiVy4Pt4gw")

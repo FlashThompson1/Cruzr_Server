@@ -157,10 +157,10 @@
         </button>
         <div class="anim-group" id="animGroup">
             <button class="anim-btn" onclick="triggerAnimation('hug')">🤗 Обнять</button>
-            <button class="anim-btn" onclick="triggerAnimation('handshake')">🤝 Пожать руку</button>
+            <button class="anim-btn" onclick="triggerAnimation('shankhand')">🤝 Пожать руку</button>
             <button class="anim-btn" onclick="triggerAnimation('goodbye')">👋 Попрощаться</button>
             <button class="anim-btn" onclick="triggerAnimation('nod')">👍 Кивнуть (Да)</button>
-            <button class="anim-btn" onclick="triggerAnimation('shake_head')">👎 Покачать головой (Нет)</button>
+           
         </div>
 
         <button class="nav-btn" id="navBtnGuideRu" onclick="triggerGuide('ru')" disabled>🇷🇺 Запустить гида (РУС)</button>
@@ -187,8 +187,8 @@
         // ==========================================================
         // БЕЗОПАСНЫЙ ЛОКАЛЬНЫЙ АДРЕС (Исключает ошибки CORS)
         // ==========================================================
-        const SERVER_URL = "https://cruzr-server-xyz.onrender.com";
-        const LIVEKIT_URL = "ws://10.203.216.202:7880";
+        const SERVER_URL = "https://cruzr-server.onrender.com";
+        const LIVEKIT_URL = "wss://cruzr-neovex.duckdns.org";
         const ROOM_NAME = "neovex_room";
 
         let currentRoom = null;
