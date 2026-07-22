@@ -6,6 +6,8 @@ from fastapi.staticfiles import StaticFiles
 import edge_tts
 import re
 import os
+import asyncio
+import subprocess
 from pathlib import Path
 import uuid
 from google import genai
@@ -47,7 +49,44 @@ GUIDE_MEDIA_EXTENSIONS = {
     ".mp3", ".wav", ".m4a", ".aac", ".ogg",
     ".jpg", ".jpeg", ".png", ".webp"
 }
+GUIDE_VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".m4v"}
 app.mount("/guide_media", StaticFiles(directory=str(GUIDE_MEDIA_DIR)), name="guide_media")
+
+
+def transcode_guide_video(source: Path, destination: Path) -> None:
+    command = [
+        imageio_ffmpeg.get_ffmpeg_exe(),
+        "-y",
+        "-i", str(source),
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-map_metadata", "-1",
+        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,"
+               "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
+        "-r", "25",
+        "-c:v", "libx264",
+        "-profile:v", "baseline",
+        "-level", "3.1",
+        "-pix_fmt", "yuv420p",
+        "-preset", "veryfast",
+        "-crf", "23",
+        "-maxrate", "2500k",
+        "-bufsize", "5000k",
+        "-g", "50",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-ar", "44100",
+        "-ac", "2",
+        "-movflags", "+faststart",
+        "-write_tmcd", "0",
+        "-sn",
+        "-dn",
+        str(destination),
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, timeout=15 * 60)
+    if completed.returncode != 0 or not destination.is_file():
+        error = completed.stderr.strip().splitlines()
+        raise RuntimeError(error[-1] if error else "FFmpeg could not convert the video")
 
 @app.get("/")
 async def root():
@@ -63,11 +102,14 @@ async def upload_guide_media(request: Request, file: UploadFile = UploadBody(...
     if extension not in GUIDE_MEDIA_EXTENSIONS:
         raise HTTPException(status_code=415, detail="Unsupported guide media format")
 
-    stored_name = f"{uuid.uuid4().hex}{extension}"
+    upload_id = uuid.uuid4().hex
+    is_video = extension in GUIDE_VIDEO_EXTENSIONS
+    stored_name = f"{upload_id}.mp4" if is_video else f"{upload_id}{extension}"
     output = GUIDE_MEDIA_DIR / stored_name
+    uploaded_file = GUIDE_MEDIA_DIR / f"{upload_id}.upload{extension}" if is_video else output
     written = 0
     try:
-        with output.open("wb") as target:
+        with uploaded_file.open("wb") as target:
             while True:
                 chunk = await file.read(1024 * 1024)
                 if not chunk:
@@ -77,10 +119,21 @@ async def upload_guide_media(request: Request, file: UploadFile = UploadBody(...
                     raise HTTPException(status_code=413, detail="Guide media is larger than 500 MB")
                 target.write(chunk)
     except Exception:
+        uploaded_file.unlink(missing_ok=True)
         output.unlink(missing_ok=True)
         raise
     finally:
         await file.close()
+
+    if is_video:
+        try:
+            await asyncio.to_thread(transcode_guide_video, uploaded_file, output)
+        except Exception as error:
+            output.unlink(missing_ok=True)
+            raise HTTPException(status_code=422, detail=f"Video conversion failed: {error}") from error
+        finally:
+            uploaded_file.unlink(missing_ok=True)
+        written = output.stat().st_size
 
     public_base = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
     if not public_base:
@@ -89,6 +142,7 @@ async def upload_guide_media(request: Request, file: UploadFile = UploadBody(...
         "url": f"{public_base}/guide_media/{stored_name}",
         "filename": original_name,
         "size": written,
+        "transcoded": is_video,
     }
 
 @app.get("/get_token")
