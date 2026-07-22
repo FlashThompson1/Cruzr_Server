@@ -1,10 +1,13 @@
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File as UploadBody, HTTPException
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import edge_tts
 import re
 import os
+from pathlib import Path
+import uuid
 from google import genai
 from google.genai import types
 
@@ -19,7 +22,7 @@ from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
 LIVEKIT_URL = "wss://cruzr-neovex.duckdns.org"
-LIVEKIT_API_KEY = "APICWoWc2ckBgqh"
+LIVEKIT_API_KEY = "APICWoWC2ckBgqh"
 LIVEKIT_API_SECRET = "7aeJDn5fWe7XQRTdVNemXsFTz7YxEVovW3pByNuAKV3A"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
@@ -34,9 +37,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+GUIDE_MEDIA_DIR = Path(os.getenv("GUIDE_MEDIA_DIR", "guide_media")).resolve()
+GUIDE_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+GUIDE_MEDIA_MAX_BYTES = 500 * 1024 * 1024
+GUIDE_MEDIA_EXTENSIONS = {
+    ".mp4", ".webm", ".mov", ".m4v",
+    ".mp3", ".wav", ".m4a", ".aac", ".ogg",
+    ".jpg", ".jpeg", ".png", ".webp"
+}
+app.mount("/guide_media", StaticFiles(directory=str(GUIDE_MEDIA_DIR)), name="guide_media")
+
 @app.get("/")
 async def root():
     return {"status": "Neovex Cloud Server is Online"}
+
+@app.post("/guide/upload")
+async def upload_guide_media(request: Request, file: UploadFile = UploadBody(...)):
+    original_name = Path(file.filename or "media.bin").name
+    extension = Path(original_name).suffix.lower()
+    if extension not in GUIDE_MEDIA_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="Unsupported guide media format")
+
+    stored_name = f"{uuid.uuid4().hex}{extension}"
+    output = GUIDE_MEDIA_DIR / stored_name
+    written = 0
+    try:
+        with output.open("wb") as target:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > GUIDE_MEDIA_MAX_BYTES:
+                    raise HTTPException(status_code=413, detail="Guide media is larger than 500 MB")
+                target.write(chunk)
+    except Exception:
+        output.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+
+    public_base = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+    if not public_base:
+        public_base = str(request.base_url).rstrip("/")
+    return {
+        "url": f"{public_base}/guide_media/{stored_name}",
+        "filename": original_name,
+        "size": written,
+    }
 
 @app.get("/get_token")
 async def get_token(request: Request):
