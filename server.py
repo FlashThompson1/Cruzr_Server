@@ -21,8 +21,10 @@ AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
 from livekit import api
 
 # === ВАШИ КЛЮЧИ LIVEKIT ===
+# LiveKit credentials must match the keys configured on the self-hosted server.
+# Keep secrets in Render environment variables instead of committing them here.
 LIVEKIT_URL = "wss://cruzr-neovex.duckdns.org"
-LIVEKIT_API_KEY = "APICWoWC2ckBgqh"
+LIVEKIT_API_KEY = "APICWoWc2ckBgqh"
 LIVEKIT_API_SECRET = "7aeJDn5fWe7XQRTdVNemXsFTz7YxEVovW3pByNuAKV3A"
 
 # === НАСТРОЙКА LLM (GEMINI) ===
@@ -49,7 +51,10 @@ app.mount("/guide_media", StaticFiles(directory=str(GUIDE_MEDIA_DIR)), name="gui
 
 @app.get("/")
 async def root():
-    return {"status": "Neovex Cloud Server is Online"}
+    return {
+        "status": "Neovex Cloud Server is Online",
+        "livekit_configured": bool(LIVEKIT_API_KEY and LIVEKIT_API_SECRET),
+    }
 
 @app.post("/guide/upload")
 async def upload_guide_media(request: Request, file: UploadFile = UploadBody(...)):
@@ -96,6 +101,12 @@ async def get_token(request: Request):
     if not room or not participant_name:
         return Response(content="Missing room or participant_name", status_code=400)
 
+    if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="LIVEKIT_API_KEY and LIVEKIT_API_SECRET are not configured on the token server",
+        )
+
     grant = api.VideoGrants(room_join=True, room=room)
     if is_operator:
         grant.can_publish = True
@@ -110,7 +121,7 @@ async def get_token(request: Request):
         .with_name(participant_name) \
         .with_grants(grant)
 
-    return {"token": token.to_jwt()}
+    return {"token": token.to_jwt(), "livekit_url": LIVEKIT_URL}
 
 @app.post("/ask")
 async def process_audio(request: Request):
@@ -178,4 +189,4 @@ async def process_audio(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
